@@ -3,14 +3,11 @@ module gonotes
 go 1.13
 
 require (
+	github.com/Shopify/sarama v1.26.4
 	github.com/boombuler/barcode v1.0.0
-	github.com/kr/pretty v0.2.0 // indirect
+	github.com/bsm/sarama-cluster v2.1.15+incompatible
+	github.com/onsi/ginkgo v1.12.2 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.4.2
-	github.com/stretchr/testify v1.4.0 // indirect
-	golang.org/x/sys v0.0.0-20200301204400-5d559ad92b82 // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
-	gopkg.in/yaml.v2 v2.2.8 // indirect
+	github.com/spf13/viper v1.7.0
 )
-
-replace google.golang.org/grpc v1.27.0 => google.golang.org/grpc v1.26.0

@@ -2,12 +2,9 @@ package main
 
 import (
 	"fmt"
-	"time"
-
-	//"github.com/robfig/cron"
-	//"github.com/robfig/cron"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 //Field name   | Mandatory? | Allowed values  | Allowed special characters
