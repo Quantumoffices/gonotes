@@ -10,6 +10,14 @@
           <option name="port" value="22" />
         </fileTransfer>
       </webServer>
+      <webServer id="f883a64b-f4c9-4207-b086-c61f3ab89ca1" name="tco" url="http://47.57.189.172">
+        <fileTransfer host="47.57.189.172" port="22" rootFolder="/home/go/test" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

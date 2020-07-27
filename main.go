@@ -10,9 +10,7 @@ func main() {
 }
 
 func add(src []int) {
-
 	fmt.Println(fmt.Sprintf("%p", src))
-
 	for i := 0; i < 10; i++ {
 		src = append(src, i)
 		fmt.Println(fmt.Sprintf("%p", src))
