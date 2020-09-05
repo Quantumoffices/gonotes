@@ -4,33 +4,63 @@ import (
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/gocolly/colly/v2"
+	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
 )
 
-//证监会行业市盈率
+func GetAllFile(pathname string) (s []string, err error) {
+	rd, err := ioutil.ReadDir(pathname)
+	if err != nil {
+		fmt.Println("read dir fail:", err)
+		return s, err
+	}
+	for _, fi := range rd {
+		if fi.IsDir() {
+			fullDir := pathname + "/" + fi.Name()
+			s, err = GetAllFile(fullDir)
+			if err != nil {
+				fmt.Println("read dir fail:", err)
+				return s, err
+			}
+		} else {
+			fullName := pathname + "/" + fi.Name()
+			s = append(s, fullName)
+		}
+	}
+	return s, nil
+}
 
-type ZhjhHyShyl struct {
-	Hydm string `json:"行业代码"`
+func init() {
+	s, e := GetAllFile("./colly/school")
+	if e != nil {
+		panic(e)
+	}
+	fmt.Println(s)
 
-	Hymc string `json:"行业名称"`
-
-	Zxsj *float64 `json:"最新数据"`
-
-	Gpjs int `json:"股票家数"`
-
-	Ksjs int `json:"亏损家数"`
-
-	Jygy *float64 `json:"近一个月"`
-
-	Jsgy *float64 `json:"近三个月"`
-
-	Jlgy *float64 `json:"近六个月"`
-
-	Jyn *float64 `json:"近一年"`
-
-	Zhy []*ZhjhHyShyl `json:"细分行业"`
+	f, err := excelize.OpenFile(fmt.Sprintf("./colly/school/%s.xlsx", "上海"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// Get value from cell by given worksheet name and axis.
+	cell, err := f.GetCellValue("Sheet1", "B2")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(cell)
+	// Get all the rows in the Sheet1.
+	rows, err := f.GetRows("Sheet1")
+	for _, row := range rows {
+		for _, colCell := range row {
+			fmt.Print(colCell, "\t")
+		}
+		fmt.Println()
+	}
+	comments := f.GetSheetMap()
+	fmt.Println(comments)
 }
 
 func main() {
@@ -73,7 +103,7 @@ func main() {
 		log.Fatal(err)
 
 	}
-	oneItem("北京", "http://college.gaokao.com/schlist/a1/")
+	//oneItem("北京", "http://college.gaokao.com/schlist/a1/")
 }
 
 func oneItem(name string, url string) {
@@ -125,7 +155,7 @@ func oneItem(name string, url string) {
 		indexStr := strconv.Itoa(rowIndex)
 		e.ForEach("dt>strong", func(i int, element *colly.HTMLElement) {
 			sufix := "学院"
-			if strings.HasSuffix(element.Text, "大学") {
+			if strings.HasSuffix(element.Text, "大学") || strings.HasSuffix(element.Text, "学院") {
 				sufix = ""
 			}
 			//fmt.Println("学校名称：", element.Text+sufix)
