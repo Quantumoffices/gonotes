@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="116.62.245.150" id="3e719a73-2f55-4f3d-ab0f-bddb7ee599d2" port="22" customName="116.62.245.150/dlv" nameFormat="CUSTOM" username="root">
+        <option name="customName" value="116.62.245.150/dlv" />
+      </sshConfig>
+      <sshConfig authType="PASSWORD" host="47.57.189.172" id="c22e8a7f-dc74-453a-8501-28cf2d165e62" port="22" customName="tco" nameFormat="CUSTOM" username="root">
+        <option name="customName" value="tco" />
+      </sshConfig>
+    </configs>
+  </component>
+</project>
