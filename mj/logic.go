@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
-	"reflect"
-	"sync"
 	"time"
 )
 
@@ -28,49 +26,20 @@ func GetCardValue(card byte) byte {
 //是否胡牌
 //@param cards []byte 普通牌
 //@param special []byte 百搭牌
-func CheckHu(cards [10]byte, specials []byte) (isHu bool, groups []Group) {
+func CheckHu(cards []byte, specials []byte) (isHu bool, groups map[int][]Group) {
 	count := len(cards)
 	godCount := len(specials)
 	if (count+godCount)%3 != 2 {
 		return
 	}
 	//byte to index 转换成牌值存储
-	mList := map[byte][10]byte{} //color-value list
+	list := [MaxCard]byte{}
 	for i := 0; i < count; i++ {
-		color := GetCardColor(cards[i])
-		value := GetCardValue(cards[i])
-		list, exist := mList[color]
-		if !exist {
-			mList[color] = [MaxCard + 1]byte{value}
-			continue
-		}
-		list[value]++
-		mList[color] = list
+		list[cards[i]]++
 	}
-	doubleCards := []Card{}
-	for color, list := range mList {
-		for i := 1; i < 10; i++ {
-			//1.优先组合可能的将牌
-			if list[i] > 1 {
-				doubleCard := Card{
-					Color: color,
-					Value: byte(i),
-				}
-				doubleCards = append(doubleCards, doubleCard)
-			}
-			//2.检查是否可333
-			if list[i] > 1 {
-				list[i] -= 2
-				ok, mGroups, lastGodCount := IsCan333(list, godCount, color)
-				if !ok {
-					return
-				}
-				godCount = lastGodCount
-				groups = append(groups, mGroups...)
-			}
-		}
-	}
-
+	curCard := byte(1)
+	fmt.Println(list)
+	isHu, groups = multiCheck(Group{}, curCard, list, godCount)
 	return
 }
 
@@ -80,397 +49,418 @@ func Covert2Card(color, value byte) byte {
 	return b[0]
 }
 
-//是否可以组成333形式
-//@param list [10]byte 牌值索引
-//@param godCount int 百搭牌数量
-func IsCan333(list [10]byte, godCount int, color byte) (ok bool, groups []Group, lastGodCount int) {
-	for i := 1; i < 10; i++ {
-		for list[i] > 0 {
-			value := byte(i)
-			switch {
-			case list[i] >= 3: //优先组碰
-				list[i] -= 3
-				fmt.Println(list, "去掉3个:", value)
-				//card := Covert2Card(color, value)
-				card := Card{Color: color, Value: value}
-				newGroup := Group{
-					Type:  GroupTypePenZi, //碰子
-					Cards: []Card{card, card, card},
-				}
-				groups = append(groups, newGroup)
-			case list[i] == 2:
-				//212
-				//2111
-				if godCount > 0 && list[i+1] < 1 ||
-					godCount > 0 && i <= 7 && list[i+1] < 2 && list[i+2] < 2 ||
-					godCount > 0 && value == MaxCard {
-					godCount--
-					list[i]++
-					continue
-				}
-				fallthrough
-			default:
-				//字牌无法组成顺子
-				if color >= CardColorZiPai && godCount < 2 {
-					return
-				}
-				//组成顺子
-				if i < 8 && list[i+1] > 0 && list[i+2] > 0 {
-					list[i]--
-					list[i+1]--
-					list[i+2]--
-					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-					card1 := Card{Color: color, Value: value}
-					card2 := Card{Color: color, Value: value + 1}
-					card3 := Card{Color: color, Value: value + 2}
-					//card1 := Covert2Card(color, value)
-					//card2 := Covert2Card(color, value+1)
-					//card3 := Covert2Card(color, value+2)
-					newGroup := Group{
-						Type:  GroupTypeShunZi, //碰子
-						Cards: []Card{card1, card2, card3},
-					}
-					groups = append(groups, newGroup)
-				} else if godCount > 0 {
-					//89
-					if i == 8 && list[i+1] > 0 {
-						list[i-1]++
-						i--
-						godCount--
-						continue
-					}
-					//1/0/0-->组成碰
-					if list[i+1] < 0 && list[i+2] < 0 {
-						list[i]++
-						godCount--
-						continue
-					}
-					//110
-					if list[i+1] > 0 && list[i+2] < 1 {
-						list[i+2]++
-						godCount--
-						continue
-					}
-					//101
-					if list[i+2] > 0 && list[i+1] < 1 {
-						list[i+1]++
-						godCount--
-						continue
-					}
-				} else {
-					if value >= MaxCard || godCount < 1 || list[i] > 0 && list[i+1] < 1 {
-						return
-					}
-				}
+//多路判断
+func multiCheck(newGroup Group, curCard byte, list [MaxCard]byte, godCount int) (ok bool, groups map[int][]Group) {
+	groups = map[int][]Group{}
+	curGroups := []Group{newGroup}
+	curKind := 0
+	success, otherGroups := check333(curCard, list, godCount)
+	//isHaveSuccess:=false
+	if success {
+		ok = true
+		for _, otherGroupList := range otherGroups {
+			curKind++
+			if _, exit := groups[curKind]; !exit {
+				groups[curKind] = curGroups
 			}
+			groups[curKind] = append(groups[curKind], otherGroupList...)
 		}
 	}
-	ok = true
-	lastGodCount = godCount
-	return
-}
-
-//是否可以组成333形式
-//@param list [10]byte 牌值索引
-//@param godCount int 百搭牌数量
-func Analysis333(list [10]byte, color byte, godCount int) (ok bool, groups []Group) {
-	//两组情况
-	//优先碰子
-	for i := 1; i < 10; i++ {
-		for list[i] > 0 {
-			value := byte(i)
-			switch {
-			case list[i] >= 3: //优先组碰
-				list[i] -= 3
-				fmt.Println(list, "去掉3个:", value)
-				card := Card{Color: color, Value: value}
-				newGroup := Group{
-					Ok:    true,
-					Type:  GroupTypePenZi, //碰子
-					Cards: []Card{card, card, card},
-				}
-				groups = append(groups, newGroup)
-			case list[i] == 2:
-				if color >= CardColorZiPai || i == 9 || list[i+1] < 2 {
-					list[i] -= 2
-					fmt.Println(list, "去掉2个:", value)
-					card := Card{Color: color, Value: value}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeDouble, //对子
-						Cards: []Card{card, card},
-					}
-					groups = append(groups, newGroup)
-					continue
-				}
-				fallthrough
-			default:
-				//字牌无法组成顺子
-				if color >= CardColorZiPai {
-					return
-				}
-				//组成顺子
-				if i < 8 && list[i+1] > 0 && list[i+2] > 0 {
-					list[i]--
-					list[i+1]--
-					list[i+2]--
-					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-					card1 := Card{Color: color, Value: value}
-					card2 := Card{Color: color, Value: value + 1}
-					card3 := Card{Color: color, Value: value + 2}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeShunZi, //碰子
-						Cards: []Card{card1, card2, card3},
-					}
-					groups = append(groups, newGroup)
-				} else {
-					//11
-					if i < 9 && list[i+1] > 0 {
-						list[i]--
-						list[i+1]--
-						//list[i+2]--
-						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-						card1 := Card{Color: color, Value: value}
-						card2 := Card{Color: color, Value: value + 1}
-						//card3 := Card{Color: color, Value: value + 2}
-						newGroup := Group{
-							Ok:    false,
-							Type:  GroupTypeShunZi, //张
-							Cards: []Card{card1, card2, Card{InvalidColor, InvalidValue}},
-						}
-						groups = append(groups, newGroup)
-						continue
-					}
-					//101
-					if i < 8 && list[i+2] > 0 {
-						list[i]--
-						//list[i+1]--
-						list[i+2]--
-						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-						card1 := Card{Color: color, Value: value}
-						//card2 := Card{Color: color, Value: value + 1}
-						card3 := Card{Color: color, Value: value + 2}
-						newGroup := Group{
-							Ok:    false,
-							Type:  GroupTypeShunZi, //张
-							Cards: []Card{card1, Card{InvalidColor, InvalidValue}, card3},
-						}
-						groups = append(groups, newGroup)
-						continue
-					}
-					//1/0/0-->单张
-					list[i]--
-					//list[i+1]--
-					//list[i+2]--
-					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-					card1 := Card{Color: color, Value: value}
-					//card2 := Card{Color: color, Value: value + 1}
-					//card3 := Card{Color: color, Value: value + 2}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeSingle, //张
-						Cards: []Card{card1},
-					}
-					groups = append(groups, newGroup)
-				}
+	success, otherGroups = check123(curCard, list, godCount)
+	if success {
+		ok = true
+		for _, otherGroupList := range otherGroups {
+			curKind++
+			if _, exit := groups[curKind]; !exit {
+				groups[curKind] = curGroups
 			}
+			groups[curKind] = append(groups[curKind], otherGroupList...)
 		}
+	}
+	success, otherGroups = check222(curCard, list, godCount)
+	if success {
+		ok = true
+		for _, otherGroupList := range otherGroups {
+			curKind++
+			if _, exit := groups[curKind]; !exit {
+				groups[curKind] = curGroups
+			}
+			groups[curKind] = append(groups[curKind], otherGroupList...)
+		}
+	}
+	if len(groups) < 1 {
+		groups[curKind] = curGroups
 	}
 	return
 }
 
-func check333(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups []Group) {
-	for curCard := startCard; curCard < MaxCard; curCard++ {
-		if list[curCard] >= 3 {
-			list[curCard] -= 3
-			fmt.Println(list, "去掉3张:", curCard)
-			newGroup := Group{
-				Ok:    true,
-				Type:  GroupTypePenZi, //碰子
-				Cards: []byte{curCard, curCard, curCard},
-			}
-			groups = append(groups, newGroup)
-			if ok, otherGroups := check333(curCard, list, godCount); ok {
-				groups = append(groups, otherGroups...)
-			}
-		}
-		return
-	}
-	ok = true
-	return
-}
-
-func check123(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups []Group) {
+//组碰子
+func check333(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups map[int][]Group) {
 	for curCard := startCard; curCard < MaxCard; curCard++ {
 		if list[curCard] > 0 {
-			list[curCard] -= 3
-			fmt.Println(list, "去掉3张:", curCard)
+			switch {
+			case list[curCard] >= 3:
+				list[curCard] -= 3
+			case list[curCard] == 2 && godCount > 0:
+				list[curCard] -= 2
+				godCount--
+			case list[curCard] == 1 && godCount > 1:
+				list[curCard] -= 1
+				godCount -= 2
+			default:
+				return
+			}
 			newGroup := Group{
-				Ok:    true,
-				Type:  GroupTypePenZi, //碰子
+				Type:  GroupTypePenZi,
 				Cards: []byte{curCard, curCard, curCard},
 			}
-			groups = append(groups, newGroup)
-			if ok, otherGroups := check333(curCard, list, godCount); ok {
-				groups = append(groups, otherGroups...)
-			}
+			ok, groups = multiCheck(newGroup, curCard, list, godCount)
+			return
+			//curGroups := []Group{newGroup}
+			//curKind := 0
+			//success, otherGroups := check333(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = curGroups
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check123(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = curGroups
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check222(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = curGroups
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//if len(groups) < 1 {
+			//	groups[curKind] = curGroups
+			//}
+
 		}
-		return
+	}
+	ok = true
+	return
+}
+
+//组顺子
+func check123(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups map[int][]Group) {
+	for curCard := startCard; curCard < MaxCard; curCard++ {
+		if list[curCard] > 0 {
+			color := curCard / 10
+			//字牌不能组成顺子
+			if color > 2 {
+				return
+			}
+			card1 := curCard
+			card2 := curCard + 1
+			card3 := curCard + 2
+
+			value := curCard % 10
+			switch {
+			case value < 8 && list[curCard+1] > 0 && list[curCard+2] > 0: //111
+				list[card1]--
+				list[card2]--
+				list[card3]--
+			case value < 8 && list[curCard+1] < 1 && list[curCard+2] < 1: //100
+				if godCount < 2 {
+					return
+				}
+				godCount -= 2
+				list[card1]--
+			case value < 8 && list[curCard+1] < 1 && list[curCard+2] > 0: //101
+				if godCount < 1 {
+					return
+				}
+				list[card1]--
+				//list[card2]--
+				list[card3]--
+				godCount -= 1
+			case value < 8 && list[curCard+1] > 0 && list[curCard+2] < 1: //110
+				if godCount < 1 {
+					return
+				}
+				list[card1]--
+				list[card2]--
+				//list[card3]--
+				godCount -= 1
+			case value < 9 && list[curCard+1] > 0: //11
+				if godCount < 1 {
+					return
+				}
+				card3 = card1 - 1
+				list[card1]--
+				list[card2]--
+				//list[card3]--
+				godCount -= 1
+			default:
+				return
+			}
+			newGroup := Group{
+				Type:  GroupTypeShunZi, //碰子
+				Cards: []byte{card1, card2, card3},
+			}
+			ok, groups = multiCheck(newGroup, curCard, list, godCount)
+			return
+			//curKind := 0
+			//success, otherGroups := check333(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check123(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check222(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+		}
+	}
+	ok = true
+	return
+}
+
+//组对子
+func check222(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups map[int][]Group) {
+	for curCard := startCard; curCard < MaxCard; curCard++ {
+		if list[curCard] > 0 {
+			switch {
+			case list[curCard] >= 2:
+				list[curCard] -= 2
+			case list[curCard] == 1 && godCount > 0:
+				list[curCard] -= 1
+				godCount--
+			default:
+				return
+			}
+			newGroup := Group{
+				Type:  GroupTypeDouble, //碰子
+				Cards: []byte{curCard, curCard},
+			}
+			ok, groups = multiCheck(newGroup, curCard, list, godCount)
+			return
+			//curKind := 0
+			//success, otherGroups := check333(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check123(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//success, otherGroups = check222(curCard, list, godCount)
+			//if success {
+			//	for _, otherGroupList := range otherGroups {
+			//		curKind++
+			//		if _, exit := groups[curKind]; !exit {
+			//			groups[curKind] = []Group{newGroup}
+			//		}
+			//		groups[curKind] = append(groups[curKind], otherGroupList...)
+			//	}
+			//}
+			//groups = append(groups, newGroup)
+			//break
+		}
 	}
 	ok = true
 	return
 }
 
 //优先组碰
-func analysis333(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups []Group) {
-	for curCard := startCard; curCard < MaxCard; curCard++ {
-		if list[curCard] > 0 {
-			switch {
-			case list[curCard] >= 3: //优先组碰
-				list[curCard] -= 3
-				fmt.Println(list, "去掉3张:", curCard)
-				newGroup := Group{
-					Ok:    true,
-					Type:  GroupTypePenZi, //碰子
-					Cards: []byte{curCard, curCard, curCard},
-				}
-				groups = append(groups, newGroup)
-				ok, otherGroups := analysis333(curCard, list, godCount)
-				if ok {
-					groups = append(groups, otherGroups...)
-					return
-				}
-			case list[curCard] == 2:
-				//组成对子
-				if curCard > 30 || curCard%10 == 9 || list[curCard+1] < 2 {
-					list[curCard] -= 2
-					fmt.Println(list, "去掉2个:", curCard)
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeDouble, //对子
-						Cards: []byte{curCard, curCard},
-					}
-					groups = append(groups, newGroup)
-					continue
-				}
-			case list[curCard] == 1:
-			}
-		}
-	}
-	return
-}
+//func analysis333(startCard byte, list [MaxCard]byte, godCount int) (ok bool, groups []Group) {
+//	for curCard := startCard; curCard < MaxCard; curCard++ {
+//		if list[curCard] > 0 {
+//			switch {
+//			case list[curCard] >= 3: //优先组碰
+//				list[curCard] -= 3
+//				fmt.Println(list, "去掉3张:", curCard)
+//				newGroup := Group{
+//					Ok:    true,
+//					Type:  GroupTypePenZi, //碰子
+//					Cards: []byte{curCard, curCard, curCard},
+//				}
+//				groups = append(groups, newGroup)
+//				ok, otherGroups := analysis333(curCard, list, godCount)
+//				if ok {
+//					groups = append(groups, otherGroups...)
+//					return
+//				}
+//			case list[curCard] == 2:
+//				//组成对子
+//				if curCard > 30 || curCard%10 == 9 || list[curCard+1] < 2 {
+//					list[curCard] -= 2
+//					fmt.Println(list, "去掉2个:", curCard)
+//					newGroup := Group{
+//						Ok:    true,
+//						Type:  GroupTypeDouble, //对子
+//						Cards: []byte{curCard, curCard},
+//					}
+//					groups = append(groups, newGroup)
+//					continue
+//				}
+//			case list[curCard] == 1:
+//			}
+//		}
+//	}
+//	return
+//}
 
 //优先组顺子
 //@param list [10]byte 牌值索引
 //@param godCount int 百搭牌数量
-func Analysis123(list [10]byte, color byte, godCount int) (ok bool, groups []Group) {
-	//两组情况
-	//优先碰子
-	for i := 1; i < 10; i++ {
-		for list[i] > 0 {
-			value := byte(i)
-			switch {
-			case list[i] == 1:
-				//字牌无法组成顺子
-				if color >= CardColorZiPai {
-					return
-				}
-				//组成顺子
-				if i < 8 && list[i+1] > 0 && list[i+2] > 0 {
-					list[i]--
-					list[i+1]--
-					list[i+2]--
-					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-					card1 := Card{Color: color, Value: value}
-					card2 := Card{Color: color, Value: value + 1}
-					card3 := Card{Color: color, Value: value + 2}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeShunZi, //碰子
-						Cards: []Card{card1, card2, card3},
-					}
-					groups = append(groups, newGroup)
-				} else {
-					//11
-					if i < 9 && list[i+1] > 0 {
-						list[i]--
-						list[i+1]--
-						//list[i+2]--
-						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-						card1 := Card{Color: color, Value: value}
-						card2 := Card{Color: color, Value: value + 1}
-						//card3 := Card{Color: color, Value: value + 2}
-						newGroup := Group{
-							Ok:    false,
-							Type:  GroupTypeShunZi, //张
-							Cards: []Card{card1, card2, Card{InvalidColor, InvalidValue}},
-						}
-						groups = append(groups, newGroup)
-						continue
-					}
-					//101
-					if i < 8 && list[i+2] > 0 {
-						list[i]--
-						//list[i+1]--
-						list[i+2]--
-						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-						card1 := Card{Color: color, Value: value}
-						//card2 := Card{Color: color, Value: value + 1}
-						card3 := Card{Color: color, Value: value + 2}
-						newGroup := Group{
-							Ok:    false,
-							Type:  GroupTypeShunZi, //张
-							Cards: []Card{card1, Card{InvalidColor, InvalidValue}, card3},
-						}
-						groups = append(groups, newGroup)
-						continue
-					}
-					//1/0/0-->单张
-					list[i]--
-					//list[i+1]--
-					//list[i+2]--
-					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
-					card1 := Card{Color: color, Value: value}
-					//card2 := Card{Color: color, Value: value + 1}
-					//card3 := Card{Color: color, Value: value + 2}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeSingle, //张
-						Cards: []Card{card1},
-					}
-					groups = append(groups, newGroup)
-				}
-
-			case list[i] == 2:
-				if color >= CardColorZiPai || i == 9 || list[i+1] < 2 {
-					list[i] -= 2
-					fmt.Println(list, "去掉2个:", value)
-					card := Card{Color: color, Value: value}
-					newGroup := Group{
-						Ok:    true,
-						Type:  GroupTypeDouble, //对子
-						Cards: []Card{card, card},
-					}
-					groups = append(groups, newGroup)
-					continue
-				}
-			case list[i] >= 3: //优先组碰
-				list[i] -= 3
-				fmt.Println(list, "去掉3个:", value)
-				card := Card{Color: color, Value: value}
-				newGroup := Group{
-					Ok:    true,
-					Type:  GroupTypePenZi, //碰子
-					Cards: []Card{card, card, card},
-				}
-				groups = append(groups, newGroup)
-
-			}
-		}
-	}
-	return
-}
+//func Analysis123(list [10]byte, color byte, godCount int) (ok bool, groups []Group) {
+//	//两组情况
+//	//优先碰子
+//	for i := 1; i < 10; i++ {
+//		for list[i] > 0 {
+//			value := byte(i)
+//			switch {
+//			case list[i] == 1:
+//				//字牌无法组成顺子
+//				if color >= CardColorZiPai {
+//					return
+//				}
+//				//组成顺子
+//				if i < 8 && list[i+1] > 0 && list[i+2] > 0 {
+//					list[i]--
+//					list[i+1]--
+//					list[i+2]--
+//					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
+//					card1 := Card{Color: color, Value: value}
+//					card2 := Card{Color: color, Value: value + 1}
+//					card3 := Card{Color: color, Value: value + 2}
+//					newGroup := Group{
+//						Ok:    true,
+//						Type:  GroupTypeShunZi, //碰子
+//						Cards: []Card{card1, card2, card3},
+//					}
+//					groups = append(groups, newGroup)
+//				} else {
+//					//11
+//					if i < 9 && list[i+1] > 0 {
+//						list[i]--
+//						list[i+1]--
+//						//list[i+2]--
+//						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
+//						card1 := Card{Color: color, Value: value}
+//						card2 := Card{Color: color, Value: value + 1}
+//						//card3 := Card{Color: color, Value: value + 2}
+//						newGroup := Group{
+//							Ok:    false,
+//							Type:  GroupTypeShunZi, //张
+//							Cards: []Card{card1, card2, Card{InvalidColor, InvalidValue}},
+//						}
+//						groups = append(groups, newGroup)
+//						continue
+//					}
+//					//101
+//					if i < 8 && list[i+2] > 0 {
+//						list[i]--
+//						//list[i+1]--
+//						list[i+2]--
+//						fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
+//						card1 := Card{Color: color, Value: value}
+//						//card2 := Card{Color: color, Value: value + 1}
+//						card3 := Card{Color: color, Value: value + 2}
+//						newGroup := Group{
+//							Ok:    false,
+//							Type:  GroupTypeShunZi, //张
+//							Cards: []Card{card1, Card{InvalidColor, InvalidValue}, card3},
+//						}
+//						groups = append(groups, newGroup)
+//						continue
+//					}
+//					//1/0/0-->单张
+//					list[i]--
+//					//list[i+1]--
+//					//list[i+2]--
+//					fmt.Println(list, "去掉:", value, "-", value+1, "-", value+2)
+//					card1 := Card{Color: color, Value: value}
+//					//card2 := Card{Color: color, Value: value + 1}
+//					//card3 := Card{Color: color, Value: value + 2}
+//					newGroup := Group{
+//						Ok:    true,
+//						Type:  GroupTypeSingle, //张
+//						Cards: []Card{card1},
+//					}
+//					groups = append(groups, newGroup)
+//				}
+//
+//			case list[i] == 2:
+//				if color >= CardColorZiPai || i == 9 || list[i+1] < 2 {
+//					list[i] -= 2
+//					fmt.Println(list, "去掉2个:", value)
+//					card := Card{Color: color, Value: value}
+//					newGroup := Group{
+//						Ok:    true,
+//						Type:  GroupTypeDouble, //对子
+//						Cards: []Card{card, card},
+//					}
+//					groups = append(groups, newGroup)
+//					continue
+//				}
+//			case list[i] >= 3: //优先组碰
+//				list[i] -= 3
+//				fmt.Println(list, "去掉3个:", value)
+//				card := Card{Color: color, Value: value}
+//				newGroup := Group{
+//					Ok:    true,
+//					Type:  GroupTypePenZi, //碰子
+//					Cards: []Card{card, card, card},
+//				}
+//				groups = append(groups, newGroup)
+//
+//			}
+//		}
+//	}
+//	return
+//}
 
 //洗牌
 func Shuffle(src []byte) (dst []byte) {

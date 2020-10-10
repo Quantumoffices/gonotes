@@ -4,7 +4,7 @@ const (
 	MaxCountRepository      = 136 //库存数量
 	MaxCountHandCard        = 17  //手牌数量
 	MaxChair                = 4   //最大椅子数量
-	MaxCard            byte = 40  //最大牌值
+	MaxCard            byte = 40  //最大牌
 
 	//MaskCodeColor byte = f0 //花色掩码
 	//MaskCodeValue      = 0f //牌值掩码
@@ -38,7 +38,6 @@ type Card struct {
 }
 
 type Group struct {
-	Ok    bool //z组合是否成功
 	Type  byte
 	Cards []byte
 }
