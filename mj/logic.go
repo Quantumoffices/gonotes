@@ -32,14 +32,34 @@ func CheckHu(cards []byte, specials []byte) (isHu bool, groups map[int][]Group) 
 	if (count+godCount)%3 != 2 {
 		return
 	}
-	//byte to index 转换成牌值存储
+	//牌数量计算
 	list := [MaxCard]byte{}
 	for i := 0; i < count; i++ {
 		list[cards[i]]++
 	}
-	curCard := byte(1)
+	//万
+	startCard := byte(1)
 	fmt.Println(list)
-	isHu, groups = multiCheck(Group{}, curCard, list, godCount)
+	isHu, groups = multiCheck(Group{}, startCard, list, godCount)
+	//只能有一对
+	if isHu {
+		for kind, groupList := range groups {
+			count = 0
+			for i := 0; i < len(groupList); i++ {
+				if groupList[i].Type == GroupTypeDouble {
+					count++
+					if count > 1 {
+						//去掉不符合的
+						delete(groups, kind)
+						break
+					}
+				}
+			}
+		}
+		if len(groups) < 1 {
+			isHu = false
+		}
+	}
 	return
 }
 
@@ -55,7 +75,6 @@ func multiCheck(newGroup Group, curCard byte, list [MaxCard]byte, godCount int) 
 	curGroups := []Group{newGroup}
 	curKind := 0
 	success, otherGroups := check333(curCard, list, godCount)
-	//isHaveSuccess:=false
 	if success {
 		ok = true
 		for _, otherGroupList := range otherGroups {

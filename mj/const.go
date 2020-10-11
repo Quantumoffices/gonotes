@@ -37,13 +37,14 @@ type Card struct {
 	Value byte
 }
 
+//组
 type Group struct {
 	Type  byte
 	Cards []byte
 }
 
 //牌数据
-var BaseCards = []byte{
+var BaseCards = [136]byte{
 	//36
 	1, 2, 3, 4, 5, 6, 7, 8, 9, //1~9万
 	1, 2, 3, 4, 5, 6, 7, 8, 9, //1~9万
@@ -67,4 +68,4 @@ var BaseCards = []byte{
 }
 
 //春夏秋冬梅兰竹菊（花牌） 8
-var SpecialCards = []byte{41, 42, 43, 44, 45, 46, 47, 48}
+var SpecialCards = [8]byte{41, 42, 43, 44, 45, 46, 47, 48}
