@@ -10,5 +10,4 @@ func main() {
 	viper.AutomaticEnv()
 	fmt.Println(viper.GetString("ENV"))
 	time.Sleep(time.Minute)
-
 }

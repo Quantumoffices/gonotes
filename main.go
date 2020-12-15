@@ -1,76 +1,68 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/hex"
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/crypto"
+	"reflect"
+	"regexp"
+	"unsafe"
 )
 
-var (
-	file     = flag.String("file", "", "file")
-	password = flag.String("password", "", "password")
-)
-
-func init() {
-	flag.Parse()
+type A struct {
+	S *string
 }
+
+func (f *A) String() string {
+	return *f.S
+}
+
+type ATrick struct {
+	S unsafe.Pointer
+}
+
+func (f *ATrick) String() string {
+	return *(*string)(f.S)
+}
+
+func NewA(s string) A {
+	return A{S: &s}
+}
+
+func NewATrick(s string) ATrick {
+	return ATrick{S: noescape(unsafe.Pointer(&s))}
+}
+
+func noescape(p unsafe.Pointer) unsafe.Pointer {
+	x := uintptr(p)
+	return unsafe.Pointer(x ^ 0)
+}
+
+type Equaler interface {
+	Equal(Equaler) bool
+}
+type T int
+
+func (t T) Equal(u T) bool { return t == u } // does not satisfy Equaler
 
 func main() {
-	if _, err := os.Stat(*file); os.IsNotExist(err) {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	keyjson, err := ioutil.ReadFile(*file)
-	if err != nil {
-		panic(err)
-	}
-
-	key, err := keystore.DecryptKey(keyjson, *password)
-	if err != nil {
-		panic(err)
-	}
-	address := key.Address.Hex()
-	privateKey := hex.EncodeToString(crypto.FromECDSA(key.PrivateKey))
-
-	fmt.Printf("Address:\t%s\nPrivateKey:\t%s\n",
-		address,
-		privateKey,
-	)
+	var sl []int
+	fmt.Println(sl == nil)
+	fmt.Println(fmt.Sprintf("%#v", sl))
+	fmt.Println(fmt.Sprintf("%#t", sl))
+	fmt.Println(reflect.ValueOf(sl))
+	fmt.Println(reflect.TypeOf(sl))
+	sl = append(sl, 1)
+	fmt.Println(sl)
+	os.Open()
 }
 
-func GenKeyPair() (privateKey string, publicKey string, e error) {
-	priKey, e := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if e != nil {
-		return "", "", e
-	}
-	ecPrivateKey, e := x509.MarshalECPrivateKey(priKey)
-	if e != nil {
-		return "", "", e
-	}
-	privateKey = base64.StdEncoding.EncodeToString(ecPrivateKey)
+func Bad() (err error) {
+	return err
+}
 
-	X := priKey.X
-	Y := priKey.Y
-	xStr, e := X.MarshalText()
-	if e != nil {
-		return "", "", e
-	}
-	yStr, e := Y.MarshalText()
-	if e != nil {
-		return "", "", e
-	}
-	public := string(xStr) + "+" + string(yStr)
-	publicKey = base64.StdEncoding.EncodeToString([]byte(public))
-	return
+//验证邮箱
+func VerifyEmailAddr(addr string) bool {
+	exp := `\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*`
+	re := regexp.MustCompile(exp)
+	return re.MatchString(addr)
 }
