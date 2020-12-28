@@ -1,15 +1,12 @@
 package main
 
-import "fmt"
-
-const s = "Go101.org"
-
-// len(s) == 9
-// 1 << 9 == 512
-// 512 / 128 == 4
-
-const 万 = 1
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+)
 
 func main() {
-	fmt.Println(万)
+	data, _ := json.Marshal(context.WithValue(context.Background(), "a", "b"))
+	fmt.Println(string(data))
 }
