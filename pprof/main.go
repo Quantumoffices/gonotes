@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-var cpuprofile = flag.String("cpuprofile", "cpu.prof", "write cpu profile `file`")
-var memprofile = flag.String("memprofile", "mem.prof", "write memory profile to `file`")
+var cpuprofile = flag.String("cpuprofile", "./pprof/cpu.prof", "write cpu profile `file`")
+var memprofile = flag.String("memprofile", "./pprof/mem.prof", "write memory profile to `file`")
 
 const (
 	col = 10000
@@ -25,12 +25,13 @@ func main() {
 		if err != nil {
 			log.Fatal("could not create CPU profile: ", err)
 		}
+		//启动cpu分析
 		if err := pprof.StartCPUProfile(f); err != nil { //监控cpu
 			log.Fatal("could not start CPU profile: ", err)
 		}
+		//停止cpu分析
 		defer pprof.StopCPUProfile()
 	}
-
 	// 主逻辑区，进行一些简单的代码运算
 	x := [row][col]int{}
 	s := rand.New(rand.NewSource(time.Now().UnixNano()))
