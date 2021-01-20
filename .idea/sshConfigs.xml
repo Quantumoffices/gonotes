@@ -8,6 +8,12 @@
       <sshConfig authType="PASSWORD" host="47.57.189.172" id="c22e8a7f-dc74-453a-8501-28cf2d165e62" port="22" customName="tco" nameFormat="CUSTOM" username="root">
         <option name="customName" value="tco" />
       </sshConfig>
+      <sshConfig authType="PASSWORD" host="116.62.245.150" id="4c32fd9f-e78c-420f-9e89-d998675fb3c2" port="22" customName="116.62.245.150/dlv" nameFormat="CUSTOM">
+        <option name="customName" value="116.62.245.150/dlv" />
+      </sshConfig>
+      <sshConfig authType="PASSWORD" host="47.57.189.172" id="9e375619-1440-4ca1-b438-c68a45e839d3" port="22" customName="tco" nameFormat="CUSTOM">
+        <option name="customName" value="tco" />
+      </sshConfig>
     </configs>
   </component>
 </project>

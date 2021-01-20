@@ -2,20 +2,12 @@ package main
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
+	"time"
 )
 
 func TestIface1(t *testing.T) {
-	var (
-		data  *int
-		eface interface{}
-	)
-	eface = data
-	fmt.Println(data == nil)
-	fmt.Println(eface == nil)
-	fmt.Println(reflect.TypeOf(data))
-	fmt.Println(reflect.ValueOf(data))
+	fmt.Println("20006/01/02", time.Now().String())
 }
 
 func TestIface2(t *testing.T) {
