@@ -34,7 +34,7 @@ func main() {
 
 	body := "Hello World!"
 	for {
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 100)
 		err = ch.Publish(
 			"",     // exchange
 			q.Name, // routing key
